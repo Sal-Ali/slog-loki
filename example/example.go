@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/Sal-Ali/loki-client-go/loki"
-	slogloki "github.com/Sal-Ali/slog-loki/v3"
+	slogloki "github.com/Sal-Ali/slog-loki"
 
 	"log/slog"
 )
