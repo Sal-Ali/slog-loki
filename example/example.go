@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/grafana/loki-client-go/loki"
-	slogloki "github.com/samber/slog-loki/v3"
+	"github.com/Sal-Ali/loki-client-go/loki"
+	slogloki "github.com/Sal-Ali/slog-loki/v3"
 
 	"log/slog"
 )

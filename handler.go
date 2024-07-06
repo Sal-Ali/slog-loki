@@ -6,7 +6,7 @@ import (
 
 	"log/slog"
 
-	"github.com/grafana/loki-client-go/loki"
+	"github.com/Sal-Ali/loki-client-go/loki"
 	slogcommon "github.com/samber/slog-common"
 )
 
