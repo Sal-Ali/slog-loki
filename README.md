@@ -1,3 +1,4 @@
+Forked and fixed to work in 2024.
 
 # slog: Loki handler
 
