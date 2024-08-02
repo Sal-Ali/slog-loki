@@ -125,7 +125,7 @@ func NewDataConverter(dataPrefix string, opts ...DataConverterOpt) Converter {
 		attrs := slogcommon.AppendRecordAttrsToAttrs(loggerAttr, groups, record)
 
 		// developer formatters
-		attrs = slogcommon.ReplaceError(attrs, o.ErrorKeys...)
+		attrs = replaceError(attrs, o.ErrorKeys...)
 		if addSource {
 			attrs = append(attrs, slogcommon.Source(o.SourceKey, record))
 		}
@@ -180,4 +180,22 @@ func removeDataAttrs(attrs []slog.Attr, prefix string, dataKey string) []slog.At
 		}
 	}
 	return safe
+}
+
+func replaceError(attrs []slog.Attr, errorKeys ...string) []slog.Attr {
+	replaceAttr := func(groups []string, a slog.Attr) slog.Attr {
+		if len(groups) > 1 {
+			return a
+		}
+
+		for i := range errorKeys {
+			if a.Key == errorKeys[i] {
+				if err, ok := a.Value.Any().(error); ok {
+					return slog.Any(a.Key, err.Error())
+				}
+			}
+		}
+		return a
+	}
+	return slogcommon.ReplaceAttrs(replaceAttr, []string{}, attrs...)
 }
