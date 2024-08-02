@@ -134,9 +134,11 @@ func NewDataConverter(dataPrefix string, opts ...DataConverterOpt) Converter {
 		attrs = slogcommon.RemoveEmptyAttrs(attrs)
 
 		dataMap := getAttrsDataMap(attrs, dataPrefix, false)
-		b, err := json.Marshal(dataMap)
-		if err == nil && len(b) > 0 {
-			attrs = append(attrs, slog.String("data", string(b)))
+		if len(dataMap) > 0 {
+			b, err := json.Marshal(dataMap)
+			if err == nil {
+				attrs = append(attrs, slog.String("data", string(b)))
+			}
 		}
 		attrs = removeDataAttrs(attrs, dataPrefix, o.DataKey)
 
