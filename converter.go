@@ -135,7 +135,7 @@ func NewDataConverter(dataPrefix string, opts ...DataConverterOpt) Converter {
 
 		dataMap := getAttrsDataMap(attrs, dataPrefix, false)
 		b, err := json.Marshal(dataMap)
-		if err == nil {
+		if err == nil && len(b) > 0 {
 			attrs = append(attrs, slog.String("data", string(b)))
 		}
 		attrs = removeDataAttrs(attrs, dataPrefix, o.DataKey)
