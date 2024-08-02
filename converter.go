@@ -1,6 +1,7 @@
 package slogloki
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -77,4 +78,106 @@ func stripIvalidChars(s string) string {
 		}
 	}
 	return result.String()
+}
+
+type DataConverterOpts struct {
+	ErrorKeys []string
+	SourceKey string
+	DataKey   string
+}
+
+type DataConverterOpt func(*DataConverterOpts)
+
+func DefaultDataConverterOpts() *DataConverterOpts {
+	return &DataConverterOpts{
+		ErrorKeys: ErrorKeys,
+		SourceKey: SourceKey,
+		DataKey:   "data",
+	}
+}
+
+func DataConverterErrorKeyOpt(keys ...string) DataConverterOpt {
+	return func(opts *DataConverterOpts) {
+		opts.ErrorKeys = keys
+	}
+}
+
+func DataConverterSourceKeyOpt(key string) DataConverterOpt {
+	return func(opts *DataConverterOpts) {
+		opts.SourceKey = key
+	}
+}
+
+func DataConverterDataKeyOpt(key string) DataConverterOpt {
+	return func(opts *DataConverterOpts) {
+		opts.DataKey = key
+	}
+}
+
+func NewDataConverter(dataPrefix string, opts ...DataConverterOpt) Converter {
+	o := DefaultDataConverterOpts()
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	return func(addSource bool, replaceAttr func(groups []string, a slog.Attr) slog.Attr, loggerAttr []slog.Attr, groups []string, record *slog.Record) model.LabelSet {
+		// aggregate all attributes
+		attrs := slogcommon.AppendRecordAttrsToAttrs(loggerAttr, groups, record)
+
+		// developer formatters
+		attrs = slogcommon.ReplaceError(attrs, o.ErrorKeys...)
+		if addSource {
+			attrs = append(attrs, slogcommon.Source(o.SourceKey, record))
+		}
+		attrs = append(attrs, slog.String("level", record.Level.String()))
+		attrs = slogcommon.ReplaceAttrs(replaceAttr, []string{}, attrs...)
+		attrs = slogcommon.RemoveEmptyAttrs(attrs)
+
+		dataMap := getAttrsDataMap(attrs, dataPrefix, false)
+		b, err := json.Marshal(dataMap)
+		if err == nil {
+			attrs = append(attrs, slog.String("data", string(b)))
+		}
+		attrs = removeDataAttrs(attrs, dataPrefix, o.DataKey)
+
+		// handler formatter
+		output := slogcommon.AttrsToMap(attrs...)
+
+		labelSet := model.LabelSet{}
+		flatten("", output, labelSet)
+
+		return labelSet
+	}
+}
+
+func getAttrsDataMap(attrs []slog.Attr, prefix string, isGroup bool) map[string]any {
+	dataMap := map[string]any{}
+	for _, attr := range attrs {
+		if strings.HasPrefix(attr.Key, prefix) || isGroup {
+			if attr.Value.Kind() == slog.KindGroup {
+				if isGroup {
+					dataMap[attr.Key] = getAttrsDataMap(attr.Value.Resolve().Group(), attr.Key, true)
+				} else {
+					dataMap[attr.Key[len(prefix):]] = getAttrsDataMap(attr.Value.Resolve().Group(), attr.Key, true)
+				}
+			} else {
+				if isGroup {
+					dataMap[attr.Key] = attr.Value.Resolve().Any()
+				} else {
+					dataMap[attr.Key[len(prefix):]] = attr.Value.Resolve().Any()
+				}
+			}
+		}
+	}
+	return dataMap
+}
+
+func removeDataAttrs(attrs []slog.Attr, prefix string, dataKey string) []slog.Attr {
+	safe := []slog.Attr{}
+	for _, attr := range attrs {
+		if attr.Key == dataKey || !strings.HasPrefix(attr.Key, prefix) {
+			safe = append(safe, attr)
+		}
+	}
+	return safe
 }
