@@ -98,7 +98,7 @@ func DefaultDataConverterOpts() *DataConverterOpts {
 		SourceKey:        SourceKey,
 		DataKey:          "data",
 		ExemptDataPrefix: "",
-		ExemptKeys:       []string{"level"},
+		ExemptKeys:       []string{"level", "err", "error"},
 		UseImplied:       false,
 	}
 }
