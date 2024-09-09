@@ -171,7 +171,7 @@ func NewDataConverter(dataPrefix string, opts ...DataConverterOpt) Converter {
 func getAttrsDataMap(attrs []slog.Attr, dataPrefix string, useImplied bool, exemptDataPrefix string, isGroup bool) map[string]any {
 	dataMap := map[string]any{}
 	for _, attr := range attrs {
-		if !strings.HasPrefix(attr.Key, exemptDataPrefix) && (useImplied || strings.HasPrefix(attr.Key, dataPrefix) || isGroup) {
+		if strings.HasPrefix(attr.Key, exemptDataPrefix) && (useImplied || strings.HasPrefix(attr.Key, dataPrefix) || isGroup) {
 			if attr.Value.Kind() == slog.KindGroup {
 				if isGroup {
 					dataMap[attr.Key] = getAttrsDataMap(attr.Value.Resolve().Group(), attr.Key, useImplied, exemptDataPrefix, true)
@@ -193,7 +193,12 @@ func getAttrsDataMap(attrs []slog.Attr, dataPrefix string, useImplied bool, exem
 func removeDataAttrs(attrs []slog.Attr, dataPrefix string, exemptDataPrefix string, dataKey string) []slog.Attr {
 	safe := []slog.Attr{}
 	for _, attr := range attrs {
-		if attr.Key == dataKey || !strings.HasPrefix(attr.Key, dataPrefix) || strings.HasPrefix(attr.Key, exemptDataPrefix) {
+		if strings.HasPrefix(attr.Key, exemptDataPrefix) {
+			safe = append(safe, slog.Attr{
+				Key:   attr.Key[len(exemptDataPrefix):],
+				Value: attr.Value,
+			})
+		} else if attr.Key == dataKey || !strings.HasPrefix(attr.Key, dataPrefix) {
 			safe = append(safe, attr)
 		}
 	}
