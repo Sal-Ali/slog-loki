@@ -81,18 +81,22 @@ func stripIvalidChars(s string) string {
 }
 
 type DataConverterOpts struct {
-	ErrorKeys []string
-	SourceKey string
-	DataKey   string
+	ErrorKeys        []string
+	SourceKey        string
+	DataKey          string
+	ExemptDataPrefix string
+	UseImplied       bool
 }
 
 type DataConverterOpt func(*DataConverterOpts)
 
 func DefaultDataConverterOpts() *DataConverterOpts {
 	return &DataConverterOpts{
-		ErrorKeys: ErrorKeys,
-		SourceKey: SourceKey,
-		DataKey:   "data",
+		ErrorKeys:        ErrorKeys,
+		SourceKey:        SourceKey,
+		DataKey:          "data",
+		ExemptDataPrefix: "",
+		UseImplied:       false,
 	}
 }
 
@@ -111,6 +115,18 @@ func DataConverterSourceKeyOpt(key string) DataConverterOpt {
 func DataConverterDataKeyOpt(key string) DataConverterOpt {
 	return func(opts *DataConverterOpts) {
 		opts.DataKey = key
+	}
+}
+
+func DataConverterUseImpliedOpt() DataConverterOpt {
+	return func(opts *DataConverterOpts) {
+		opts.UseImplied = true
+	}
+}
+
+func DataConverterExemptDataPrefixOpt(prefix string) DataConverterOpt {
+	return func(opts *DataConverterOpts) {
+		opts.ExemptDataPrefix = prefix
 	}
 }
 
@@ -133,14 +149,14 @@ func NewDataConverter(dataPrefix string, opts ...DataConverterOpt) Converter {
 		attrs = slogcommon.ReplaceAttrs(replaceAttr, []string{}, attrs...)
 		attrs = slogcommon.RemoveEmptyAttrs(attrs)
 
-		dataMap := getAttrsDataMap(attrs, dataPrefix, false)
+		dataMap := getAttrsDataMap(attrs, dataPrefix, o.UseImplied, o.ExemptDataPrefix, false)
 		if len(dataMap) > 0 {
 			b, err := json.Marshal(dataMap)
 			if err == nil {
 				attrs = append(attrs, slog.String("data", string(b)))
 			}
 		}
-		attrs = removeDataAttrs(attrs, dataPrefix, o.DataKey)
+		attrs = removeDataAttrs(attrs, dataPrefix, o.ExemptDataPrefix, o.DataKey)
 
 		// handler formatter
 		output := slogcommon.AttrsToMap(attrs...)
@@ -152,21 +168,21 @@ func NewDataConverter(dataPrefix string, opts ...DataConverterOpt) Converter {
 	}
 }
 
-func getAttrsDataMap(attrs []slog.Attr, prefix string, isGroup bool) map[string]any {
+func getAttrsDataMap(attrs []slog.Attr, dataPrefix string, useImplied bool, exemptDataPrefix string, isGroup bool) map[string]any {
 	dataMap := map[string]any{}
 	for _, attr := range attrs {
-		if strings.HasPrefix(attr.Key, prefix) || isGroup {
+		if !strings.HasPrefix(attr.Key, exemptDataPrefix) && (useImplied || strings.HasPrefix(attr.Key, dataPrefix) || isGroup) {
 			if attr.Value.Kind() == slog.KindGroup {
 				if isGroup {
-					dataMap[attr.Key] = getAttrsDataMap(attr.Value.Resolve().Group(), attr.Key, true)
+					dataMap[attr.Key] = getAttrsDataMap(attr.Value.Resolve().Group(), attr.Key, useImplied, exemptDataPrefix, true)
 				} else {
-					dataMap[attr.Key[len(prefix):]] = getAttrsDataMap(attr.Value.Resolve().Group(), attr.Key, true)
+					dataMap[attr.Key[len(dataPrefix):]] = getAttrsDataMap(attr.Value.Resolve().Group(), attr.Key, useImplied, exemptDataPrefix, true)
 				}
 			} else {
 				if isGroup {
 					dataMap[attr.Key] = attr.Value.Resolve().Any()
 				} else {
-					dataMap[attr.Key[len(prefix):]] = attr.Value.Resolve().Any()
+					dataMap[attr.Key[len(dataPrefix):]] = attr.Value.Resolve().Any()
 				}
 			}
 		}
@@ -174,10 +190,10 @@ func getAttrsDataMap(attrs []slog.Attr, prefix string, isGroup bool) map[string]
 	return dataMap
 }
 
-func removeDataAttrs(attrs []slog.Attr, prefix string, dataKey string) []slog.Attr {
+func removeDataAttrs(attrs []slog.Attr, dataPrefix string, exemptDataPrefix string, dataKey string) []slog.Attr {
 	safe := []slog.Attr{}
 	for _, attr := range attrs {
-		if attr.Key == dataKey || !strings.HasPrefix(attr.Key, prefix) {
+		if attr.Key == dataKey || !strings.HasPrefix(attr.Key, dataPrefix) || strings.HasPrefix(attr.Key, exemptDataPrefix) {
 			safe = append(safe, attr)
 		}
 	}
